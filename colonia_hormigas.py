@@ -102,136 +102,224 @@ beta = 3 # Peso de la visibilidad -> Rango recomendado 2-5
 q0 = 0.9 # Probabilidad de eleccion determinista
 
 class MACS_VRPTW():
-    def __init__(self, datos, vehicle_capacity):
+    def __init__(self, datos, vehicle_capacity, num_ants=10): # Inicializacion, 10 Hormigas por ciclo
         self.nodes_full = datos
-        self.nodes = datos[:, 1:3] # Coordenadas [x, y]
-        self.capacity = vehicle_capacity # Capacidad del vehiculo
-        self.demands = datos[:, 3] # Demanda del cliente
-        self.service_time = datos[:, 6] # Tiempo de servicio
+        self.nodes = datos[:, 1:3] 
+        self.capacity = vehicle_capacity 
+        self.demands = datos[:, 3] 
+        self.service_time = datos[:, 6] 
         self.n = len(self.nodes)
-        self.windows = datos[:, 4:6] # Ventanas de tiempo [Ready time, Due date]
-        self.dist_matrix = calc_dist(self.nodes) # Matriz de distancia entre nodos
-        self.pheromone = np.ones(self.dist_matrix.shape) * 0.1 # Matriz de feromonas inicial
-
-        self.best_routes = None # Rutas
-        self.min_v = 25 # Numero de vehiculos
-        self.best_dist = float('inf') # Distancia total
-        self.history_dist = [] # Historial de las distancias minimizadas por solucion
-
-        self.IN = np.ones(self.n) # Registro del # de veces que un nodo no ha sido incluido en la ruta
+        self.windows = datos[:, 4:6] 
+        self.dist_matrix = calc_dist(self.nodes) 
+        
+        self.num_ants = num_ants 
+        self.min_v = 25 
+        
+        self.IN = np.ones(self.n) 
+        
+        self.best_routes = None 
+        self.best_dist = float('inf') 
+        self.history_dist = [] 
+        
+        # Inicializar matrices expandidas
+        self._actualizar_matrices_expandidas()
+        
+    def _actualizar_matrices_expandidas(self):
+        num_clientes = self.n - 1
+        n_total = self.min_v + num_clientes
+        
+        # Expandir demandas y tiempos de servicio
+        self.demands_exp = np.concatenate(([0] * self.min_v, self.demands[1:]))
+        self.service_time_exp = np.concatenate(([0] * self.min_v, self.service_time[1:]))
+        
+        # Expandir ventanas de tiempo
+        ventanas_deposito = np.tile(self.windows[0], (self.min_v, 1))
+        self.windows_exp = np.vstack((ventanas_deposito, self.windows[1:]))
+        
+        # Expandir matriz IN
+        self.IN_exp = np.ones(n_total)
+        self.IN_exp[self.min_v:] = self.IN[1:]
+        
+        # Expandir matriz de distancias (Distancia 0 entre depósitos)
+        self.dist_matrix_exp = np.zeros((n_total, n_total))
+        for i in range(self.min_v):
+            self.dist_matrix_exp[i, self.min_v:] = self.dist_matrix[0, 1:]
+            self.dist_matrix_exp[self.min_v:, i] = self.dist_matrix[1:, 0]
+        self.dist_matrix_exp[self.min_v:, self.min_v:] = self.dist_matrix[1:, 1:]
+        
+        # Matrices de feromonas expandidas e independientes
+        self.pheromone_vei = np.ones((n_total, n_total)) * 0.1
+        self.pheromone_time = np.ones((n_total, n_total)) * 0.1
     
+    def decodificar_tour(self, tour_gigante):
+        """Convierte el tour gigante [Dep1, C1, Dep2, C2] a rutas normales [[0, 1, 0], [0, 2, 0]]"""
+        rutas_normales = []
+        ruta_actual = []
+        
+        for nodo in tour_gigante:
+            if nodo < self.min_v: # Es un depósito
+                if ruta_actual:
+                    ruta_actual.append(0)
+                    rutas_normales.append(ruta_actual)
+                ruta_actual = [0]
+            else:
+                cliente_original = nodo - self.min_v + 1
+                ruta_actual.append(cliente_original)
+                
+        if ruta_actual and len(ruta_actual) > 1:
+            ruta_actual.append(0)
+            rutas_normales.append(ruta_actual)
+            
+        return rutas_normales
+        
     def run_macs(self, iterations=20):
         for i in range(iterations):
-            # 1. Colonia ACS-VEI: Intenta reducir el # de vehiculos actuales
-            sol_vei, unvisited = self.build_solution(self.min_v - 1)
+            # 1. Colonia ACS-VEI
+            mejor_unvisited_vei = float('inf')
+            mejor_sol_vei, mejor_sobrantes_vei = None, None
 
-            # Actualizacion de matriz IN
-            visitados = {nodo for ruta in sol_vei for nodo in ruta}
-            for nodo in range(1, self.n): # Omite el deposito [0]
-                if nodo in visitados:
-                    self.IN[nodo] = 1 # Nodo fue visitado - Valor se mantiene
-                else:
-                    self.IN[nodo] += 1 # Nodo olvidado - Aumenta su prioridad
+            for ant in range(self.num_ants):
+                # VEI opera con (vehículos actuales - 1)
+                sol_vei, unvisited = self.build_solution(self.min_v - 1, self.pheromone_vei)
+                if len(unvisited) < mejor_unvisited_vei:
+                    mejor_unvisited_vei = len(unvisited)
+                    mejor_sol_vei, mejor_sobrantes_vei = sol_vei, unvisited
 
-            if unvisited: # Sobraron nodos en la solucion
-                sol_vei, unvisited = insertion_procedure(sol_vei, unvisited, self.nodes_full, self.capacity, self.dist_matrix)
+            visitados = {nodo for ruta in mejor_sol_vei for nodo in ruta}
+            for nodo in range(1, self.n):
+                if nodo in visitados: self.IN[nodo] = 1
+                else: self.IN[nodo] += 1
+            self.IN_exp[self.min_v:] = self.IN[1:] 
 
-            if not unvisited: # Todos los nodos fueron visitados
-                self.min_v -= 1 # Disminuir la cantidad de vehiculos a v-1
-                self.IN = np.ones(self.n) # Reiniciar el registro IN
-                self.best_routes = sol_vei # Ruta generada en VEI = Mejor ruta generada al momento
-                self.best_dist = calcular_distancia_total(sol_vei, self.dist_matrix) # Calcular la distancia total de la solucion
-                self.pheromone = np.ones(self.dist_matrix.shape) * 0.1 # Reiniciar las feromonas
-                print(f"Iteracion {i}: Vehiculos reducidos a {self.min_v}")
+            if mejor_sobrantes_vei:
+                mejor_sol_vei, mejor_sobrantes_vei = insertion_procedure(mejor_sol_vei, mejor_sobrantes_vei, self.nodes_full, self.capacity, self.dist_matrix)
 
-            # 2. Colonia ACS-TIME: Optimizar la distancia para un # fijo de vehiculos
-            sol_time, unvisited_time = self.build_solution(self.min_v)
-            if not unvisited_time:
-                sol_opt, dist_opt = local_search(sol_time, self.nodes_full, self.capacity, self.dist_matrix) # Busqueda local
-                if dist_opt < self.best_dist: # Se optimizo la distancia
+            if not mejor_sobrantes_vei:
+                self.min_v -= 1
+                self.IN = np.ones(self.n)
+                self.best_routes = mejor_sol_vei
+                self.best_dist = calcular_distancia_total(mejor_sol_vei, self.dist_matrix)
+                
+                # Regenerar matrices con el nuevo límite de vehículos
+                self._actualizar_matrices_expandidas()
+                print(f"Iteración {i}: ¡Vehículos reducidos a {self.min_v}!")
+
+            # 2. Colonia ACS-TIME
+            mejor_dist_time = float('inf')
+            mejor_sol_time = None
+
+            for ant in range(self.num_ants):
+                sol_time, unvisited_time = self.build_solution(self.min_v, self.pheromone_time)
+                if not unvisited_time:
+                    dist_actual = calcular_distancia_total(sol_time, self.dist_matrix)
+                    if dist_actual < mejor_dist_time:
+                        mejor_dist_time = dist_actual
+                        mejor_sol_time = sol_time
+
+            if mejor_sol_time:
+                sol_opt, dist_opt = local_search(mejor_sol_time, self.nodes_full, self.capacity, self.dist_matrix)
+                if dist_opt < self.best_dist:
                     self.best_dist = dist_opt
                     self.best_routes = sol_opt
 
-            # 3. Actualizar feromonas (Global)
-            if not unvisited_time: # Solo se actualiza si todos los nodos fueron visitados
-                self.global_update(self.best_routes, self.best_dist)
-
-            self.history_dist.append(self.best_dist) # Agregar distancia total encontrada en la solucion al historial
-    
-    def build_solution(self, vehicles): # Construccion de rutas -> Logica de la hormiga
-        unvisited = list(range(1, len(self.nodes))) # Nodos que no han sido visitados
-        routes = [] # Rutas generadas
-
-        for v in range(vehicles):
-            if not unvisited: break # Nodo ya fue visitado
-            current_route = [0] # Ruta generada
-            current_time = 0 # Tiempo de traslado
-            current_load = 0 # Carga actual en el vehiculo
-            curr = 0 # Nodo actual
+            # 3. Actualizar feromonas
+            if self.best_routes is not None:
+                self.global_update(self.best_routes, self.best_dist, self.pheromone_time)
             
-            while unvisited:
-                feasible = [] # Nodos factibles
-                for j in unvisited:
-                    arrival_time = current_time + self.dist_matrix[curr][j] + self.service_time[j]
+            self.history_dist.append(self.best_dist)
+            
+    def build_solution(self, num_vehiculos_activos, pheromone_matrix): 
+        # Clientes van desde el índice min_v hasta el final
+        clientes_sin_visitar = list(range(self.min_v, self.min_v + self.n - 1)) 
+        
+        # Limitamos los depósitos disponibles a los vehículos permitidos en este ciclo
+        depositos_disponibles = list(range(num_vehiculos_activos)) 
+        
+        curr = random.choice(depositos_disponibles)
+        depositos_disponibles.remove(curr)
+        
+        tour_gigante = [curr]
+        current_time, current_load = 0, 0
+        
+        while clientes_sin_visitar:
+            nodos_factibles = []
+            
+            for j in clientes_sin_visitar:
+                arrival_time = current_time + self.dist_matrix_exp[curr][j] + self.service_time_exp[j]
+                if (current_load + self.demands_exp[j] <= self.capacity and arrival_time <= self.windows_exp[j][1]):
+                    nodos_factibles.append(j)
+                    
+            if not nodos_factibles and depositos_disponibles:
+                nodos_factibles.extend(depositos_disponibles)
+                
+            if not nodos_factibles: break # Hormiga atascada
+                
+            next_node = self.select_next(curr, nodos_factibles, current_time, pheromone_matrix)
+            
+            if next_node < self.min_v: # Si eligió un depósito (cambio de vehículo)
+                current_time, current_load = 0, 0
+                depositos_disponibles.remove(next_node)
+            else: # Si eligió un cliente
+                arrival_time = current_time + self.dist_matrix_exp[curr][next_node]
+                current_time = max(arrival_time, self.windows_exp[next_node][0]) + self.service_time_exp[next_node]
+                current_load += self.demands_exp[next_node]
+                clientes_sin_visitar.remove(next_node)
+                
+            tour_gigante.append(next_node)
+            
+            # Actualización local
+            pheromone_matrix[curr][next_node] = (1 - phi) * pheromone_matrix[curr][next_node] + phi * (1 / (self.n * self.n))
+            curr = next_node
+            
+        # Transformar de vuelta al formato original para evaluar
+        rutas_formateadas = self.decodificar_tour(tour_gigante)
+        unvisited_original = [nodo - self.min_v + 1 for nodo in clientes_sin_visitar]
+        
+        return rutas_formateadas, unvisited_original
 
-                    # Verificar la capacidad y ventana de tiempo
-                    if (current_load + self.demands[j] <= self.capacity and arrival_time <= self.windows[j][1]):
-                        feasible.append(j)
-                if not feasible: break # No se encontraron nodos factibles
-
-                # Regla de transicion -> Como se elige el siguiente nodo
-                next_node = self.select_next(curr, feasible, current_time)
-                unvisited.remove(next_node) # Eliminar nodo visitado de la lista
-
-                # Actualizar estado
-                arrival_time = current_time + self.dist_matrix[curr][next_node] # Tiempo de llegada al siguiente nodo
-                current_time = max(arrival_time, self.windows[next_node][0]) + self.service_time[next_node]
-                current_load += self.demands[next_node]
-
-                current_route.append(next_node) # Añadir nodo a la ruta
-
-                # Actualizacion local de feromona
-                self.pheromone[curr][next_node] = (1 - phi) * self.pheromone[curr][next_node] + phi * (1 / (self.n * self.n))
-                curr = next_node
-
-            current_route.append(0) # El vehiculo regresa al deposito
-            routes.append(current_route)
-        return routes, unvisited
-    
-    def select_next(self, i, feasible, current_time):
+    def select_next(self, i, feasible, current_time, pheromone_matrix):
         scores = []
         for j in feasible:
-            # Calcular tiempo de llegada + espera
-            arrival_time = current_time + self.dist_matrix[i][j]
-            wait_time = max(0, self.windows[j][0] - arrival_time)
+            arrival_time = current_time + self.dist_matrix_exp[i][j]
+            wait_time = max(0, self.windows_exp[j][0] - arrival_time)
+            delivery_urgency = self.windows_exp[j][1] - arrival_time
 
-            # Urgencia temporal -> Priorizar nodos cuyo fin de ventana es mas cercano
-            delivery_urgency = self.windows[j][1] - arrival_time
-
-            eta = 1.0 / (self.dist_matrix[i][j]**2 + wait_time + delivery_urgency) # Penalizar distancias lejanas entre nodos
-            tau = self.pheromone[i][j]
-            # Calcular el atractivo (score) de cada nodo factible
-            # Score = (Feromona * (1 / Distancia + Tiempo de espera + Urgencia)^Beta * IN)
-            scores.append(tau * (eta ** beta) * (self.IN[j]**2)) # Priorizar nodos que no han sido visitados -> IN
+            eta = 1.0 / (self.dist_matrix_exp[i][j]**2 + wait_time + delivery_urgency + 0.0001) 
+            tau = pheromone_matrix[i][j]
+            scores.append(tau * (eta ** beta) * (self.IN_exp[j]**2)) 
 
         if random.random() < q0:
-            # Explotacion
-            return feasible[np.argmax(scores)] # Seleccionar el nodo con el atractivo mas alto
-        
+            return feasible[np.argmax(scores)]
         else:
-            # Exploracion -> Probabilistico (Rueda de ruleta)
             total_score = sum(scores)
-            probs = [s / total_score for s in scores] # Normalizar puntajes para que sumen 1
-            return np.random.choice(feasible, p=probs) # Seleccion aleatoria basada en pesos (probabilidades)
+            if total_score == 0: return random.choice(feasible)
+            probs = [s / total_score for s in scores]
+            return np.random.choice(feasible, p=probs)
     
-    def global_update(self, best_routes, best_dist):
-            # Evaporacion y refuerzo de la mejor hormiga
-            self.pheromone *= (1 - rho)
-            deposit = 1.0 / best_dist
-            for route in best_routes:
-                for i in range(len(route) - 1):
-                    u, v = route[i], route[i+1]
-                    self.pheromone[u][v] += rho * deposit
+    def global_update(self, best_routes, best_dist, pheromone_matrix):
+        pheromone_matrix *= (1 - rho)
+        deposit = 1.0 / best_dist
+        
+        deposito_actual = 0
+        for route in best_routes:
+            if len(route) <= 2: continue # Ignorar rutas vacías [0, 0]
+            
+            # Feromona de depósito a primer cliente
+            primer_cliente = route[1] + self.min_v - 1
+            pheromone_matrix[deposito_actual][primer_cliente] += rho * deposit
+            
+            # Feromona entre clientes
+            for i in range(1, len(route) - 2):
+                u = route[i] + self.min_v - 1
+                v = route[i+1] + self.min_v - 1
+                pheromone_matrix[u][v] += rho * deposit
+            
+            # Feromona de último cliente a siguiente depósito
+            ultimo_cliente = route[-2] + self.min_v - 1
+            siguiente_deposito = deposito_actual + 1 if deposito_actual + 1 < self.min_v else deposito_actual
+            pheromone_matrix[ultimo_cliente][siguiente_deposito] += rho * deposit
+            
+            deposito_actual += 1
         
 def print_detailed_routes(best_routes, best_dist, min_v, demands, dist_matrix):
     print("\n" + "="*60)
