@@ -120,7 +120,7 @@ class MACS_VRPTW():
 
         self.IN = np.ones(self.n) # Registro del # de veces que un nodo no ha sido incluido en la ruta
     
-    def run_macs(self, iterations=20):
+    def run_macs(self, iterations=20, callback=None):
         for i in range(iterations):
             # 1. Colonia ACS-VEI: Intenta reducir el # de vehiculos actuales
             sol_vei, unvisited = self.build_solution(self.min_v - 1)
@@ -157,6 +157,8 @@ class MACS_VRPTW():
                 self.global_update(self.best_routes, self.best_dist)
 
             self.history_dist.append(self.best_dist) # Agregar distancia total encontrada en la solucion al historial
+            if callback:
+                callback(i, self.min_v, self.best_dist)
     
     def build_solution(self, vehicles): # Construccion de rutas -> Logica de la hormiga
         unvisited = list(range(1, len(self.nodes))) # Nodos que no han sido visitados
@@ -280,10 +282,11 @@ def plot_convergence(history_dist):
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.show()
 
-# Generar una instancia del solver
-solver = MACS_VRPTW(cargar_instancia('c103.txt'), 200)
-solver.run_macs(iterations=100)
+if __name__ == "__main__":
+    # Generar una instancia del solver
+    solver = MACS_VRPTW(cargar_instancia('c103.txt'), 200)
+    solver.run_macs(iterations=100)
 
-print_detailed_routes(solver.best_routes, solver.best_dist, solver.min_v, solver.demands, solver.dist_matrix) # Imprimir rutas finales
-plot_convergence(solver.history_dist) # Grafica de convergencia
-plot_final_solution(solver.nodes, solver.best_routes, solver.best_dist) # Grafico de las rutas generadas
+    print_detailed_routes(solver.best_routes, solver.best_dist, solver.min_v, solver.demands, solver.dist_matrix)
+    plot_convergence(solver.history_dist)
+    plot_final_solution(solver.nodes, solver.best_routes, solver.best_dist)
