@@ -79,21 +79,44 @@ def insertion_procedure(routes, unvisited, datos, vehicle_capacity, dist_matrix)
         return routes, sin_visitar
 
 # Busqueda local - 2opt -> Elimina los cruces en las rutas para reducir distancia total
-def local_search(solucion, nodos, vehicle_capacity, dist_matrix):
-    nueva_sol = []
-    dist_opt = 0
-    for ruta in solucion:
-        mejor_r = ruta[:]
-        mejor_d = validar_ruta(mejor_r, nodos, vehicle_capacity, dist_matrix)[1] # Distancia total para la ruta
-        for i in range(1, len(ruta) - 2):
-            for j in range(i + 1, len(ruta) - 1):
-                temp_r = ruta[:i] + ruta[i:j+1][::-1] + ruta[j+1:] # Invertir los segmentos de los nodos
-                valido, d_temp, _ = validar_ruta(temp_r, nodos, vehicle_capacity, dist_matrix) # Calcular la validez y distancia de la ruta con nodos invertidos
-                if valido and d_temp < mejor_d: # La ruta invertida tiene menor distancia que la ruta original
-                    mejor_r, mejor_d = temp_r, d_temp 
-        nueva_sol.append(mejor_r)
-        dist_opt += mejor_d
-    return nueva_sol, dist_opt
+def local_search(solucion, nodos, capacity, dist_matrix):
+    """
+    Intenta mover un cliente de una ruta a otra posición en una ruta distinta.
+    """
+    nueva_sol = [r[:] for r in solucion]
+    mejoro = True
+    
+    while mejoro:
+        mejoro = False
+        for r1_idx in range(len(nueva_sol)):
+            for cliente_idx in range(1, len(nueva_sol[r1_idx]) - 1):
+                cliente = nueva_sol[r1_idx][cliente_idx]
+                
+                # Intentar mover el 'cliente' a todas las posiciones de otras rutas
+                for r2_idx in range(len(nueva_sol)):
+                    if r1_idx == r2_idx: continue
+                    
+                    for pos in range(1, len(nueva_sol[r2_idx])):
+                        nueva_r1 = nueva_sol[r1_idx][:cliente_idx] + nueva_sol[r1_idx][cliente_idx+1:]
+                        nueva_r2 = nueva_sol[r2_idx][:pos] + [cliente] + nueva_sol[r2_idx][pos:]
+                        
+                        # Validar si el cambio es factible en ambas rutas
+                        v1, d1, _ = validar_ruta(nueva_r1, nodos, capacity, dist_matrix)
+                        v2, d2, _ = validar_ruta(nueva_r2, nodos, capacity, dist_matrix)
+                        
+                        if v1 and v2:
+                            # Si la distancia total de estas dos rutas baja, aceptamos el cambio
+                            dist_orig = calcular_distancia_total([nueva_sol[r1_idx], nueva_sol[r2_idx]], dist_matrix)
+                            dist_nueva = d1 + d2
+                            
+                            if dist_nueva < dist_orig - 0.001:
+                                nueva_sol[r1_idx] = nueva_r1
+                                nueva_sol[r2_idx] = nueva_r2
+                                mejoro = True
+                                break
+                    if mejoro: break
+            if mejoro: break
+    return [r for r in nueva_sol if len(r) > 2] # Eliminar rutas vacías
 
 # Parametros
 phi = 0.1 # Evaporacion local
@@ -254,29 +277,32 @@ class MACS_VRPTW():
     def select_next(self, i, feasible, current_time, pheromone_matrix):
         scores = []
         for j in feasible:
-            # Calcular tiempo de llegada + espera
-            arrival_time = current_time + self.dist_matrix_exp[i][j]
-            wait_time = max(0, self.windows_exp[j][0] - arrival_time)
-
-            # Urgencia temporal -> Priorizar nodos cuyo fin de ventana es mas cercano
-            delivery_urgency = self.windows_exp[j][1] - arrival_time
-
-            eta = 1.0 / (self.dist_matrix_exp[i][j]**2 + wait_time + delivery_urgency + 0.0001) 
+            # Calcular tiempos según el paper (Pág. 11) arrival_time incluye el viaje desde i hasta j
+            arrival_time = current_time + self.dist_matrix_exp[i][j] 
+            # delivery_time es cuando inicia el servicio (respetando el inicio de ventana)
+            delivery_time = max(arrival_time, self.windows_exp[j][0]) #[cite: 274]
+            
+            # Calcular delta_time (tiempo transcurrido) [cite: 275]
+            delta_time = delivery_time - current_time 
+            
+            # Calcular la urgencia temporal (distance_ij) [cite: 276, 278]
+            # Considera cuánto tiempo sobra antes de que cierre la ventana del cliente
+            urgency = delta_time * (self.windows_exp[j][1] - current_time) #[cite: 278]
+            
+            # Evitar valores cero y aplicar el vector IN para ACS-VEI [cite: 280, 281]
+            dist_final = max(1.0, urgency - self.IN_exp[j]) #[cite: 280]
+            eta = 1.0 / dist_final #[cite: 281]
+            
             tau = pheromone_matrix[i][j]
-            # Calcular el atractivo (score) de cada nodo factible
-            # Score = (Feromona * (1 / Distancia + Tiempo de espera + Urgencia)^Beta * IN)
-            scores.append(tau * (eta ** beta) * (self.IN_exp[j]**2)) # Priorizar nodos que no han sido visitados -> IN
-
-        if random.random() < q0:
-            # Explotacion
-            return feasible[np.argmax(scores)] # Seleccionar el nodo con el atractivo mas alto
-        
+            scores.append(tau * (eta ** beta))
+        # ACS (Gambardella & Dorigo, 1996) 
+        if random.random() < self.q0:
+            return feasible[np.argmax(scores)]  # Explotación [cite: 94]
         else:
-            # Exploracion -> Probabilistico (Rueda de ruleta)
             total_score = sum(scores)
             if total_score == 0: return random.choice(feasible)
-            probs = [s / total_score for s in scores] # Normalizar puntajes para que sumen 1
-            return np.random.choice(feasible, p=probs) # Seleccion aleatoria basada en pesos (probabilidades)
+            probs = [s / total_score for s in scores]
+            return np.random.choice(feasible, p=probs)  # Exploración [cite: 94]
     
     def global_update(self, best_routes, best_dist, pheromone_matrix):
             # Evaporacion y refuerzo de la mejor hormiga
