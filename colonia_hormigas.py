@@ -168,8 +168,11 @@ class MACS_VRPTW():
             self.dist_matrix_exp[self.min_v:, i] = self.dist_matrix[1:, 0]
         self.dist_matrix_exp[self.min_v:, self.min_v:] = self.dist_matrix[1:, 1:]
         # Matrices de feromonas expandidas e independientes
-        self.pheromone_vei = np.ones((n_total, n_total)) * 0.1
-        self.pheromone_time = np.ones((n_total, n_total)) * 0.1
+        # Cálculo de tau_0 según el paper de Gambardella et al. (1999)
+        tau_0 = 1.0 / (self.n * 2000) # Aproximadamente 0.000005
+        # Matrices de feromonas expandidas e independientes inicializadas con tau_0
+        self.pheromone_vei = np.ones((n_total, n_total)) * tau_0
+        self.pheromone_time = np.ones((n_total, n_total)) * tau_0
     
     def decodificar_tour(self, tour_gigante):
         """Convierte el tour gigante [Dep1, C1, Dep2, C2] a rutas normales [[0, 1, 0], [0, 2, 0]]"""
@@ -272,7 +275,10 @@ class MACS_VRPTW():
             tour_gigante.append(next_node)
 
             # Actualizacion local de feromona
-            pheromone_matrix[curr][next_node] = (1 - self.phi) * pheromone_matrix[curr][next_node] + self.phi * (1 / (self.n * self.n))
+            # Actualizacion local de feromona (Ecuación 3 del paper)
+            tau_0 = 1.0 / (self.n * 2000)
+            pheromone_matrix[curr][next_node] = (1 - self.phi) * pheromone_matrix[curr][next_node] + (self.phi * tau_0)
+            # pheromone_matrix[curr][next_node] = (1 - self.phi) * pheromone_matrix[curr][next_node] + self.phi * (1 / (self.n * self.n))
             curr = next_node
 
         # Transformar de vuelta al formato original para evaluar
