@@ -120,8 +120,8 @@ def local_search(solucion, nodos, capacity, dist_matrix):
 
 # Parametros
 phi = 0.1 # Evaporacion local
-rho = 0.3 # Evaporacion global -> Rango recomendado 0.1-0.5
-beta = 3 # Peso de la visibilidad -> Rango recomendado 2-5
+rho = 0.1 #0.3 # Evaporacion global -> Rango recomendado 0.1-0.5
+beta = 1 #3 # Peso de la visibilidad -> Rango recomendado 2-5
 q0 = 0.9 # Probabilidad de eleccion determinista
 
 class MACS_VRPTW():
