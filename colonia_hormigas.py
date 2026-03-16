@@ -126,8 +126,11 @@ q0 = 0.9 # Probabilidad de eleccion determinista
 
 class MACS_VRPTW():
     def __init__(self, datos, vehicle_capacity, num_ants=10): # Inicializacion, 10 Hormigas por ciclo
-        self.q0 = 0.9  # Agregar esta línea
+        # Parametros del MACS-VRPTW
+        self.phi = 0.1
+        self.rho = 0.1 
         self.beta = 1 
+        self.q0 = 0.9
         self.nodes_full = datos
         self.nodes = datos[:, 1:3] # Coordenadas [x, y]
         self.capacity = vehicle_capacity # Capacidad del vehiculo
@@ -235,6 +238,7 @@ class MACS_VRPTW():
             # 3. Actualizar feromonas (Global)
             if self.best_routes is not None:
                 self.global_update(self.best_routes, self.best_dist, self.pheromone_time)
+                self.global_update(self.best_routes, self.best_dist, self.pheromone_vei) # Nueva línea
 
             self.history_dist.append(self.best_dist) # Agregar distancia total encontrada en la solucion al historial
             if callback:
@@ -267,8 +271,8 @@ class MACS_VRPTW():
                 clientes_sin_visitar.remove(next_node)
             tour_gigante.append(next_node)
 
-                # Actualizacion local de feromona
-            pheromone_matrix[curr][next_node] = (1 - phi) * pheromone_matrix[curr][next_node] + phi * (1 / (self.n * self.n))
+            # Actualizacion local de feromona
+            pheromone_matrix[curr][next_node] = (1 - self.phi) * pheromone_matrix[curr][next_node] + self.phi * (1 / (self.n * self.n))
             curr = next_node
 
         # Transformar de vuelta al formato original para evaluar
@@ -296,7 +300,7 @@ class MACS_VRPTW():
             eta = 1.0 / dist_final #[cite: 281]
             
             tau = pheromone_matrix[i][j]
-            scores.append(tau * (eta ** beta))
+            scores.append(tau * (eta ** self.beta))
         # ACS (Gambardella & Dorigo, 1996) 
         if random.random() < self.q0:
             return feasible[np.argmax(scores)]  # Explotación [cite: 94]
@@ -307,24 +311,24 @@ class MACS_VRPTW():
             return np.random.choice(feasible, p=probs)  # Exploración [cite: 94]
     
     def global_update(self, best_routes, best_dist, pheromone_matrix):
-            # Evaporacion y refuerzo de la mejor hormiga
-        pheromone_matrix *= (1 - rho)
+        # Evaporacion y refuerzo de la mejor hormiga
+        pheromone_matrix *= (1 - self.rho)
         deposit = 1.0 / best_dist
         deposito_actual = 0
         for route in best_routes:
             if len(route) <= 2: continue # Ignorar rutas vacías [0, 0]
             # Feromona de depósito a primer cliente
             primer_cliente = route[1] + self.min_v - 1
-            pheromone_matrix[deposito_actual][primer_cliente] += rho * deposit
+            pheromone_matrix[deposito_actual][primer_cliente] += self.rho * deposit
             # Feromona entre clientes
             for i in range(1, len(route) - 2):
                 u = route[i] + self.min_v - 1
                 v = route[i+1] + self.min_v - 1
-                pheromone_matrix[u][v] += rho * deposit
+                pheromone_matrix[u][v] += self.rho * deposit
             # Feromona de último cliente a siguiente depósito
             ultimo_cliente = route[-2] + self.min_v - 1
             siguiente_deposito = deposito_actual + 1 if deposito_actual + 1 < self.min_v else deposito_actual
-            pheromone_matrix[ultimo_cliente][siguiente_deposito] += rho * deposit
+            pheromone_matrix[ultimo_cliente][siguiente_deposito] += self.rho * deposit
             deposito_actual += 1
         
 def print_detailed_routes(best_routes, best_dist, min_v, demands, dist_matrix):
