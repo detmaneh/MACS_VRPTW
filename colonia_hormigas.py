@@ -126,6 +126,8 @@ q0 = 0.9 # Probabilidad de eleccion determinista
 
 class MACS_VRPTW():
     def __init__(self, datos, vehicle_capacity, num_ants=10): # Inicializacion, 10 Hormigas por ciclo
+        self.q0 = 0.9  # Agregar esta línea
+        self.beta = 1 
         self.nodes_full = datos
         self.nodes = datos[:, 1:3] # Coordenadas [x, y]
         self.capacity = vehicle_capacity # Capacidad del vehiculo
