@@ -247,7 +247,7 @@ class MACS_VRPTW:
         self.stable_iterations_on_current_v = 0
         self.best_dist_for_current_v = float('inf')
 
-    def run_macs(self, iterations=100, refine_iterations_before_reduce=10):
+    def run_macs(self, iterations=100, refine_iterations_before_reduce=10, callback=None):
         for i in range(iterations):
             # Construcción base con el número actual de vehículos
             sol_time, unvisited_time = self.build_solution(self.min_v)
