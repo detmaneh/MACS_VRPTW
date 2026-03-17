@@ -67,8 +67,8 @@ if ejecutar and archivo_subido:
     gb_d = col_gb2.empty()
     
     # Inicializar el texto
-    gb_v.metric("Mejor Flota Encontrada", "Buscando...")
-    gb_d.metric("Menor Distancia Encontrada", "Buscando...")
+    gb_v.metric("Vehiculos Encontrados", "Buscando...")
+    gb_d.metric("Distancia Encontrada", "Buscando...")
     
     st.divider()
     
@@ -92,7 +92,7 @@ if ejecutar and archivo_subido:
         def actualizar_ui_en_vivo(iteracion, min_v, best_dist):
             # 1. Actualizar el progreso de la corrida actual
             rt_iter.metric(f"Iteración ({nombre_corrida})", f"{iteracion + 1} / {iteraciones}")
-            rt_v.metric("Flota (Actual)", min_v)
+            rt_v.metric("Vehiculos (Actual)", min_v)
             
             dist_str = f"{best_dist:.2f}" if best_dist != float('inf') else "Explorando rutas..."
             rt_d.metric("Distancia (Actual)", dist_str)
@@ -106,8 +106,8 @@ if ejecutar and archivo_subido:
                 record_global['d'] = best_dist
                 
                 # Actualizar los contenedores del podio inmediatamente
-                gb_v.metric("Mejor Flota Encontrada", record_global['v'])
-                gb_d.metric("Menor Distancia Encontrada", f"{record_global['d']:.2f}")
+                gb_v.metric("Vehiculos Encontrados", record_global['v'])
+                gb_d.metric("Distancia Encontrada", f"{record_global['d']:.2f}")
 
         # Inicializar un nuevo solver para esta corrida específica
         solver = MACS_VRPTW(datos, 200)
@@ -155,8 +155,8 @@ if ejecutar and archivo_subido:
         
         col_ganador1, col_ganador2, col_ganador3 = st.columns(3)
         col_ganador1.metric("Mejor Intento", mejor_resultado['Corrida'])
-        col_ganador2.metric("Mejor Flota", mejor_resultado['Vehículos'])
-        col_ganador3.metric("Menor Distancia", f"{mejor_resultado['Distancia']:.2f}")
+        col_ganador2.metric("Vehiculos Encontrados", mejor_resultado['Vehículos'])
+        col_ganador3.metric("Distancia Encontrada", f"{mejor_resultado['Distancia']:.2f}")
         
         if benchmark:
             st.markdown("## Comparación con Benchmark (Gambardella et al.)")
