@@ -146,7 +146,8 @@ if ejecutar and archivo_subido:
         })
             
         progress_bar_general.progress((corrida + 1) / int(num_corridas))
-
+        
+    estado_general.info(f"**{num_corridas} Corridas Calculadas**")
     st.divider()
 
     if resultados:
