@@ -3,8 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import re
-
-# IMPORTANTE: Ahora importamos desde vary.py (el cerebro de dos colonias)
 from colonia_hormigas import MACS_VRPTW, plot_final_solution
 
 BENCHMARKS = {
@@ -15,7 +13,6 @@ BENCHMARKS = {
     "RC101": {"vehicles": 14, "distance": 1619.80},
 }
 
-# --- Lector de archivos en memoria para Streamlit ---
 def cargar_instancia_en_memoria(uploaded_file):
     datos = []
     lineas = uploaded_file.getvalue().decode("utf-8").splitlines()
@@ -38,7 +35,6 @@ with col_param1:
     archivo_subido = st.file_uploader("Sube tu instancia (.txt)", type=['txt'])
     
 with col_param2:
-    # AQUÍ ESTÁ LA LÓGICA DE LAS CORRIDAS (El Jefe)
     num_corridas = st.number_input("Número de corridas:", min_value=2, max_value=20, value=5, step=1)
     iteraciones = st.number_input("Iteraciones por corrida:", min_value=10, max_value=500, value=50, step=10)
     
@@ -49,7 +45,6 @@ with col_param3:
 
 st.divider()
 
-# --- Lógica de Procesamiento ---
 if ejecutar and archivo_subido:
     st.subheader(f"Procesando {num_corridas} corridas de {archivo_subido.name}...")
     
@@ -57,10 +52,10 @@ if ejecutar and archivo_subido:
     datos = cargar_instancia_en_memoria(archivo_subido)
     resultados = []
     
-    # --- DICCIONARIO PARA GUARDAR EL RÉCORD GLOBAL EN VIVO ---
+    # --- DICCIONARIO PARA GUARDAR EL GLOBAL ---
     record_global = {'v': float('inf'), 'd': float('inf')}
     
-    # --- Contenedores de Interfaz del Récord Global ---
+    # --- Contenedores de Interfaz del Global ---
     st.markdown("### Mejor Solución Encontrada Hasta Ahora")
     col_gb1, col_gb2 = st.columns(2)
     gb_v = col_gb1.empty()
@@ -72,7 +67,6 @@ if ejecutar and archivo_subido:
     
     st.divider()
     
-    # --- Contenedores de Interfaz de la Corrida Actual ---
     estado_general = st.empty()
     progress_bar_general = st.progress(0)
     
@@ -83,7 +77,7 @@ if ejecutar and archivo_subido:
     rt_d = col_rt3.empty()
     rt_barra_iter = st.progress(0)
     
-    # El Bucle que manda llamar al algoritmo múltiples veces
+    # llamar al algoritmo múltiples veces
     for corrida in range(int(num_corridas)):
         nombre_corrida = f"Corrida {corrida + 1}"
         estado_general.info(f"Calculando **{nombre_corrida}**... ({corrida + 1}/{num_corridas})")
@@ -99,20 +93,19 @@ if ejecutar and archivo_subido:
             
             rt_barra_iter.progress((iteracion + 1) / iteraciones)
             
-            # 2. Lógica del RÉCORD GLOBAL
+            # 2. Lógica del GLOBAL
             # Si encontramos menos vehículos, o mismos vehículos pero mejor distancia:
             if min_v < record_global['v'] or (min_v == record_global['v'] and best_dist < record_global['d']):
                 record_global['v'] = min_v
                 record_global['d'] = best_dist
                 
-                # Actualizar los contenedores del podio inmediatamente
+                # Actualizar los contenedores inmediatamente
                 gb_v.metric("Vehiculos Encontrados", record_global['v'])
                 gb_d.metric("Distancia Encontrada", f"{record_global['d']:.2f}")
 
         # Inicializar un nuevo solver para esta corrida específica
         solver = MACS_VRPTW(datos, 200)
         
-        # Ejecutar
         solver.run_macs(iterations=iteraciones, callback=actualizar_ui_en_vivo)
         
         # Guardar los resultados al terminar
@@ -133,7 +126,6 @@ if ejecutar and archivo_subido:
 
     st.divider()
 
-    # --- Dashboard Visual ---
     if resultados:
         st.markdown("## Análisis de Resultados")
         
@@ -150,7 +142,6 @@ if ejecutar and archivo_subido:
                 / benchmark['distance']
             ) * 100
             
-        # El Podio
         st.success(f"**La Mejor Solución Final:** La más eficiente es la corrida `{mejor_resultado['Corrida']}` .")
         
         col_ganador1, col_ganador2, col_ganador3 = st.columns(3)
@@ -177,7 +168,6 @@ if ejecutar and archivo_subido:
                 delta_color="inverse"
             )
 
-            # Indicador visual tipo semáforo
             if gap_distancia < 10:
                 st.success("Excelente")
             elif gap_distancia < 30:

@@ -1,6 +1,5 @@
 import random, re, numpy as np, matplotlib.pyplot as plt
 
-# Cargar datos del txt
 def cargar_instancia(archivo):
     datos = []
     with open(archivo, 'r') as f:
@@ -293,9 +292,6 @@ class MACS_VRPTW():
             pheromone_matrix[ultimo_cliente][siguiente_deposito] += deposit
             deposito_actual += 1
 
-
-# --- FUNCIONES DE GRÁFICADO COMPATIBLES CON STREAMLIT ---
-
 def plot_final_solution(nodes, best_routes, best_dist):
     # Creamos la figura y el eje explícitamente
     fig, ax = plt.subplots(figsize=(12, 8))
@@ -311,12 +307,9 @@ def plot_final_solution(nodes, best_routes, best_dist):
     ax.set_title(f"Solucion MACS-VRPTW para la instancia\nDistancia: {best_dist:.2f} | Vehiculos: {len(best_routes)}")
     ax.legend()
     ax.grid(True)
-    
-    # IMPORTANTE: Retornamos 'fig'
     return fig
 
 def plot_convergence(history_dist):
-    # Creamos la figura y el eje explícitamente
     fig, ax = plt.subplots(figsize=(10, 5))
     
     ax.plot(history_dist, color='green', linewidth=2)
@@ -324,6 +317,4 @@ def plot_convergence(history_dist):
     ax.set_xlabel("Iteracion")
     ax.set_ylabel("Mejor Distancia Total")
     ax.grid(True, linestyle='--', alpha=0.7)
-    
-    # IMPORTANTE: Retornamos 'fig'
     return fig
