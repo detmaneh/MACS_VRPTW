@@ -258,29 +258,37 @@ def print_detailed_routes(best_routes, best_dist, min_v, demands, dist_matrix):
         print("-" * 30)
 
 def plot_final_solution(nodes, best_routes, best_dist):
-    plt.figure(figsize=(12, 8))
-    plt.scatter(nodes[1:, 0], nodes[1:, 1], c='blue', s=30, label='Clientes')
-    plt.scatter(nodes[0, 0], nodes[0, 1], c='red', marker='s', s=150, label='Deposito')
+    # Creamos la figura y el eje explícitamente
+    fig, ax = plt.subplots(figsize=(12, 8))
+    
+    ax.scatter(nodes[1:, 0], nodes[1:, 1], c='blue', s=30, label='Clientes')
+    ax.scatter(nodes[0, 0], nodes[0, 1], c='red', marker='s', s=150, label='Deposito')
     
     colors = plt.cm.rainbow(np.linspace(0, 1, len(best_routes)))
     for idx, tour in enumerate(best_routes):
         route = nodes[tour]
-        plt.plot(route[:, 0], route[:, 1], color=colors[idx], alpha=0.7, linewidth=2)
+        ax.plot(route[:, 0], route[:, 1], color=colors[idx], alpha=0.7, linewidth=2)
         
-    plt.title(f"Solucion MACS-VRPTW para la instancia\nDistancia: {best_dist:.2f} | Vehiculos: {len(best_routes)}")
-    plt.legend()
-    plt.grid(True)
-    plt.show()
+    ax.set_title(f"Solucion MACS-VRPTW para la instancia\nDistancia: {best_dist:.2f} | Vehiculos: {len(best_routes)}")
+    ax.legend()
+    ax.grid(True)
+    
+    # IMPORTANTE: Retornamos 'fig' en lugar de usar plt.show()
+    return fig
 
 # Grafica de convergencia - Distancia total
 def plot_convergence(history_dist):
-    plt.figure(figsize=(10, 5))
-    plt.plot(history_dist, color='green', linewidth=2)
-    plt.title("Convergencia del Algoritmo MACS-VRPTW")
-    plt.xlabel("Iteracion")
-    plt.ylabel("Mejor Distancia Total")
-    plt.grid(True, linestyle='--', alpha=0.7)
-    plt.show()
+    # Creamos la figura y el eje explícitamente
+    fig, ax = plt.subplots(figsize=(10, 5))
+    
+    ax.plot(history_dist, color='green', linewidth=2)
+    ax.set_title("Convergencia del Algoritmo MACS-VRPTW")
+    ax.set_xlabel("Iteracion")
+    ax.set_ylabel("Mejor Distancia Total")
+    ax.grid(True, linestyle='--', alpha=0.7)
+    
+    # IMPORTANTE: Retornamos 'fig' en lugar de usar plt.show()
+    return fig
 
 if __name__ == "__main__":
     # Generar una instancia del solver
