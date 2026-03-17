@@ -91,7 +91,7 @@ class MACS_VRPTW():
     def __init__(self, datos, vehicle_capacity, num_ants=10):
         # Parametros limpios y encapsulados
         self.phi = 0.1
-        self.rho = 0.1  # Global evaporation según el paper
+        self.rho = 0.1  # Global evaporation según la lectura
         self.beta = 1   # Peso heurístico balanceado
         self.q0 = 0.9   # Probabilidad de explotación
         self.num_ants = num_ants 

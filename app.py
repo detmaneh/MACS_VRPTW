@@ -155,14 +155,14 @@ if ejecutar and archivo_subido:
             col_b1, col_b2, col_b3 = st.columns(3)
 
             col_b1.metric(
-                "Vehículos (Paper vs Mejor Corrida)",
+                "Vehículos (Lectura vs Mejor Corrida)",
                 f"{benchmark['vehicles']} vs {mejor_resultado['Vehículos']}",
                 delta=gap_vehiculos,
                 delta_color="inverse"
             )
 
             col_b2.metric(
-                "Distancia (Paper vs Mejor Corrida)",
+                "Distancia (Lectura vs Mejor Corrida)",
                 f"{benchmark['distance']} vs {mejor_resultado['Distancia']:.2f}",
                 delta=f"{gap_distancia:.2f}%",
                 delta_color="inverse"
@@ -177,10 +177,10 @@ if ejecutar and archivo_subido:
                 
             df_benchmark = pd.DataFrame([{
                 "Instancia": instance_name,
-                "Vehículos Paper": benchmark["vehicles"],
+                "Vehículos Lectura": benchmark["vehicles"],
                 "Vehículos Tú": mejor_resultado["Vehículos"],
                 "Gap Vehículos": gap_vehiculos,
-                "Distancia Paper": benchmark["distance"],
+                "Distancia Lectura": benchmark["distance"],
                 "Distancia Tú": round(mejor_resultado["Distancia"], 2),
                 "Gap (%)": round(gap_distancia, 2)
             }])
