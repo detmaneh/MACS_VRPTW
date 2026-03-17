@@ -150,7 +150,7 @@ if ejecutar and archivo_subido:
         col_ganador3.metric("Distancia Encontrada", f"{mejor_resultado['Distancia']:.2f}")
         
         if benchmark:
-            st.markdown("## Comparación con Benchmark (Gambardella et al.)")
+            st.markdown("## Comparación")
 
             col_b1, col_b2, col_b3 = st.columns(3)
 
