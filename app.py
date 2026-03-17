@@ -7,6 +7,14 @@ import re
 # IMPORTANTE: Ahora importamos desde vary.py (el cerebro de dos colonias)
 from colonia_hormigas import MACS_VRPTW, plot_final_solution
 
+BENCHMARKS = {
+    "C101": {"vehicles": 10, "distance": 828.94},
+    "C102": {"vehicles": 10, "distance": 828.94},
+    "C103": {"vehicles": 10, "distance": 828.94},
+    "R101": {"vehicles": 19, "distance": 1645.79},
+    "RC101": {"vehicles": 14, "distance": 1619.80},
+}
+
 # --- Lector de archivos en memoria para Streamlit ---
 def cargar_instancia_en_memoria(uploaded_file):
     datos = []
@@ -49,33 +57,59 @@ if ejecutar and archivo_subido:
     datos = cargar_instancia_en_memoria(archivo_subido)
     resultados = []
     
-    # --- Contenedores de Interfaz (Se actualizan en vivo) ---
+    # --- DICCIONARIO PARA GUARDAR EL RÉCORD GLOBAL EN VIVO ---
+    record_global = {'v': float('inf'), 'd': float('inf')}
+    
+    # --- Contenedores de Interfaz del Récord Global ---
+    st.markdown("### Mejor Solución Encontrada Hasta Ahora")
+    col_gb1, col_gb2 = st.columns(2)
+    gb_v = col_gb1.empty()
+    gb_d = col_gb2.empty()
+    
+    # Inicializar el texto
+    gb_v.metric("Mejor Flota Encontrada", "Buscando...")
+    gb_d.metric("Menor Distancia Encontrada", "Buscando...")
+    
+    st.divider()
+    
+    # --- Contenedores de Interfaz de la Corrida Actual ---
     estado_general = st.empty()
     progress_bar_general = st.progress(0)
     
-    st.markdown("#### Progreso...")
+    st.markdown("#### Progreso de la Corrida Actual")
     col_rt1, col_rt2, col_rt3 = st.columns(3)
     rt_iter = col_rt1.empty()
     rt_v = col_rt2.empty()
     rt_d = col_rt3.empty()
     rt_barra_iter = st.progress(0)
     
-    # El Bucle que manda llamar a vary.py múltiples veces
+    # El Bucle que manda llamar al algoritmo múltiples veces
     for corrida in range(int(num_corridas)):
         nombre_corrida = f"Corrida {corrida + 1}"
         estado_general.info(f"Calculando **{nombre_corrida}**... ({corrida + 1}/{num_corridas})")
         
         # --- Función Callback para actualizar Streamlit en cada iteración ---
         def actualizar_ui_en_vivo(iteracion, min_v, best_dist):
+            # 1. Actualizar el progreso de la corrida actual
             rt_iter.metric(f"Iteración ({nombre_corrida})", f"{iteracion + 1} / {iteraciones}")
-            rt_v.metric("Flota (Minimizando)", min_v)
+            rt_v.metric("Flota (Actual)", min_v)
             
             dist_str = f"{best_dist:.2f}" if best_dist != float('inf') else "Explorando rutas..."
-            rt_d.metric("Distancia (Optimizando)", dist_str)
+            rt_d.metric("Distancia (Actual)", dist_str)
             
             rt_barra_iter.progress((iteracion + 1) / iteraciones)
+            
+            # 2. Lógica del RÉCORD GLOBAL
+            # Si encontramos menos vehículos, o mismos vehículos pero mejor distancia:
+            if min_v < record_global['v'] or (min_v == record_global['v'] and best_dist < record_global['d']):
+                record_global['v'] = min_v
+                record_global['d'] = best_dist
+                
+                # Actualizar los contenedores del podio inmediatamente
+                gb_v.metric("Mejor Flota Encontrada", record_global['v'])
+                gb_d.metric("Menor Distancia Encontrada", f"{record_global['d']:.2f}")
 
-        # Inicializar un nuevo solver de vary.py para esta corrida específica
+        # Inicializar un nuevo solver para esta corrida específica
         solver = MACS_VRPTW(datos, 200)
         
         # Ejecutar
@@ -95,7 +129,7 @@ if ejecutar and archivo_subido:
             
         progress_bar_general.progress((corrida + 1) / int(num_corridas))
 
-    estado_general.info(f"**{num_corridas} Corridas Calculadas**")
+    estado_general.success(f"**{num_corridas} Corridas Calculadas**")
 
     st.divider()
 
@@ -106,14 +140,62 @@ if ejecutar and archivo_subido:
         # Ordenar: 1ro Menos Vehículos, 2do Menor Distancia
         resultados_ordenados = sorted(resultados, key=lambda x: (x['Vehículos'], x['Distancia']))
         mejor_resultado = resultados_ordenados[0]
+        instance_name = archivo_subido.name.split('.')[0].upper()
+        benchmark = BENCHMARKS.get(instance_name, None)
         
+        if benchmark:
+            gap_vehiculos = mejor_resultado['Vehículos'] - benchmark['vehicles']
+            gap_distancia = (
+                (mejor_resultado['Distancia'] - benchmark['distance']) 
+                / benchmark['distance']
+            ) * 100
+            
         # El Podio
-        st.success(f"**La Mejor Solución:** La `{mejor_resultado['Corrida']}` encontró la configuración más eficiente.")
+        st.success(f"**La Mejor Solución Final:** La más eficiente es la corrida `{mejor_resultado['Corrida']}` .")
         
         col_ganador1, col_ganador2, col_ganador3 = st.columns(3)
         col_ganador1.metric("Mejor Intento", mejor_resultado['Corrida'])
         col_ganador2.metric("Mejor Flota", mejor_resultado['Vehículos'])
         col_ganador3.metric("Menor Distancia", f"{mejor_resultado['Distancia']:.2f}")
+        
+        if benchmark:
+            st.markdown("## Comparación con Benchmark (Gambardella et al.)")
+
+            col_b1, col_b2, col_b3 = st.columns(3)
+
+            col_b1.metric(
+                "Vehículos (Paper vs Mejor Corrida)",
+                f"{benchmark['vehicles']} vs {mejor_resultado['Vehículos']}",
+                delta=gap_vehiculos,
+                delta_color="inverse"
+            )
+
+            col_b2.metric(
+                "Distancia (Paper vs Mejor Corrida)",
+                f"{benchmark['distance']} vs {mejor_resultado['Distancia']:.2f}",
+                delta=f"{gap_distancia:.2f}%",
+                delta_color="inverse"
+            )
+
+            # Indicador visual tipo semáforo
+            if gap_distancia < 10:
+                st.success("Excelente")
+            elif gap_distancia < 30:
+                st.warning("Aceptable")
+            else:
+                st.error("Lejos del benchmark")
+                
+            df_benchmark = pd.DataFrame([{
+                "Instancia": instance_name,
+                "Vehículos Paper": benchmark["vehicles"],
+                "Vehículos Tú": mejor_resultado["Vehículos"],
+                "Gap Vehículos": gap_vehiculos,
+                "Distancia Paper": benchmark["distance"],
+                "Distancia Tú": round(mejor_resultado["Distancia"], 2),
+                "Gap (%)": round(gap_distancia, 2)
+            }])
+
+            st.dataframe(df_benchmark, use_container_width=True)
         
         st.write("")
         
@@ -135,7 +217,6 @@ if ejecutar and archivo_subido:
             st.dataframe(df.style.apply(highlight_first_row, axis=1), use_container_width=True)
             
         with tab_convergencia:
-            # Aquí construimos la gráfica de convergencia superpuesta directamente
             fig_conv, ax_conv = plt.subplots(figsize=(10, 5))
             
             for res in resultados:
@@ -156,7 +237,6 @@ if ejecutar and archivo_subido:
             
         with tab_mapa:
             st.markdown(f"**Visualizando rutas de la:** `{mejor_resultado['Corrida']}`")
-            # Llamamos al graficador de vary.py y le pasamos el objeto fig a Streamlit
             fig_mapa = plot_final_solution(mejor_resultado['Nodos'], mejor_resultado['Rutas'], mejor_resultado['Distancia'])
             st.pyplot(fig_mapa)
             
