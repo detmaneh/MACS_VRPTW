@@ -108,6 +108,7 @@ class MACS_VRPTW():
         self.tau0 = 1.0 / (self.n * 2000.0) # Feromona inicial equilibrada
 
         self.best_routes = None 
+        self.min_v = initial_vehicles
         # self.min_v = 25 # Numero de vehiculos inicial
         self.best_dist = float('inf') 
         self.history_dist = [] 
