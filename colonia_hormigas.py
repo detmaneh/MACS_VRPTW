@@ -88,7 +88,7 @@ def local_search(solucion, nodos, vehicle_capacity, dist_matrix):
     return nueva_sol, dist_opt
 
 class MACS_VRPTW():
-    def __init__(self, datos, vehicle_capacity, num_ants=10):
+    def __init__(self, datos, vehicle_capacity, num_ants=10, initial_vehicles=25):
         # Parametros limpios y encapsulados
         self.phi = 0.1
         self.rho = 0.1  # Global evaporation según la lectura
@@ -108,7 +108,7 @@ class MACS_VRPTW():
         self.tau0 = 1.0 / (self.n * 2000.0) # Feromona inicial equilibrada
 
         self.best_routes = None 
-        self.min_v = 25 # Numero de vehiculos inicial
+        # self.min_v = 25 # Numero de vehiculos inicial
         self.best_dist = float('inf') 
         self.history_dist = [] 
 

@@ -37,6 +37,7 @@ with col_param1:
 with col_param2:
     num_corridas = st.number_input("Número de corridas:", min_value=2, max_value=20, value=5, step=1)
     iteraciones = st.number_input("Iteraciones por corrida:", min_value=10, max_value=500, value=50, step=10)
+    vehiculos_iniciales = st.number_input("Vehículos iniciales:", min_value=5, max_value=50, value=25, step=1)
     
 with col_param3:
     st.write("")
@@ -104,7 +105,7 @@ if ejecutar and archivo_subido:
                 gb_d.metric("Distancia Encontrada", f"{record_global['d']:.2f}")
 
         # Inicializar un nuevo solver para esta corrida específica
-        solver = MACS_VRPTW(datos, 200)
+        solver = MACS_VRPTW(datos, 200, initial_vehicles=vehiculos_iniciales)
         
         solver.run_macs(iterations=iteraciones, callback=actualizar_ui_en_vivo)
         
